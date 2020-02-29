@@ -117,6 +117,12 @@ struct entry_guard_t {
    * confirmed guard. */
   time_t confirmed_on_date; /* 0 if not confirmed */
   /**
+   * In what order was this guard sampled without replacement? Guards with lower
+   * indices appear earlier on the sampled list
+   */
+  int sampled_idx;
+
+  /**
    * In what order was this guard confirmed? Guards with lower indices
    * appear earlier on the confirmed list.  If the confirmed list is compacted,
    * this field corresponds to the index of this guard on the confirmed list.
@@ -270,6 +276,12 @@ struct guard_selection_t {
   /** What confirmed_idx value should the next-added member of
    * confirmed_entry_guards receive? */
   int next_confirmed_idx;
+
+  /** What sampled_idx value should the next-added member of
+   * sampled_entry_guards receive? This should follow the size of the sampled
+   * list until sampled relays get pruned for some reason
+   */
+  int next_sampled_idx;
 
 };
 
@@ -515,7 +527,7 @@ MOCK_DECL(STATIC circuit_guard_state_t *,
 STATIC entry_guard_t *entry_guard_add_to_sample(guard_selection_t *gs,
                                                 const node_t *node);
 STATIC entry_guard_t *entry_guards_expand_sample(guard_selection_t *gs);
-STATIC char *entry_guard_encode_for_state(entry_guard_t *guard);
+STATIC char *entry_guard_encode_for_state(entry_guard_t *guard, int i);
 STATIC entry_guard_t *entry_guard_parse_from_state(const char *s);
 #define entry_guard_free(e) \
   FREE_AND_NULL(entry_guard_t, entry_guard_free_, (e))

@@ -390,12 +390,13 @@ test_entry_guard_encode_for_state_minimal(void *arg)
   eg->confirmed_idx = -1;
 
   char *s = NULL;
-  s = entry_guard_encode_for_state(eg);
+  s = entry_guard_encode_for_state(eg, 0);
 
   tt_str_op(s, OP_EQ,
             "in=wubwub "
             "rsa_id=706C75727079666C75727079736C75727079646F "
             "sampled_on=2016-11-14T00:00:00 "
+            "sampled_idx=0 "
             "listed=0");
 
  done:
@@ -421,10 +422,11 @@ test_entry_guard_encode_for_state_maximal(void *arg)
   eg->currently_listed = 1;
   eg->confirmed_on_date = 1479081690;
   eg->confirmed_idx = 333;
+  eg->sampled_idx = 42;
   eg->extra_state_fields = tor_strdup("and the green grass grew all around");
 
   char *s = NULL;
-  s = entry_guard_encode_for_state(eg);
+  s = entry_guard_encode_for_state(eg, 0);
 
   tt_str_op(s, OP_EQ,
             "in=default "
@@ -432,6 +434,7 @@ test_entry_guard_encode_for_state_maximal(void *arg)
             "bridge_addr=8.8.4.4:9999 "
             "nickname=Fred "
             "sampled_on=2016-11-14T00:00:00 "
+            "sampled_idx=0 "
             "sampled_by=1.2.3 "
             "unlisted_since=2016-11-14T00:00:45 "
             "listed=1 "
@@ -621,39 +624,46 @@ test_entry_guard_parse_from_state_full(void *arg)
   const char STATE[] =
   "Guard in=default rsa_id=214F44BD5B638E8C817D47FF7C97397790BF0345 "
     "nickname=TotallyNinja sampled_on=2016-11-12T19:32:49 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1\n"
   "Guard in=default rsa_id=052900AB0EA3ED54BAB84AE8A99E74E8693CE2B2 "
     "nickname=5OfNovember sampled_on=2016-11-20T04:32:05 "
+    "sampled_idx=1 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1 confirmed_on=2016-11-22T08:13:28 confirmed_idx=0 "
     "pb_circ_attempts=4.000000 pb_circ_successes=2.000000 "
     "pb_successful_circuits_closed=2.000000\n"
   "Guard in=default rsa_id=7B700C0C207EBD0002E00F499BE265519AC3C25A "
     "nickname=dc6jgk11 sampled_on=2016-11-28T11:50:13 "
+    "sampled_idx=2 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1 confirmed_on=2016-11-24T08:45:30 confirmed_idx=4 "
     "pb_circ_attempts=5.000000 pb_circ_successes=5.000000 "
     "pb_successful_circuits_closed=5.000000\n"
   "Guard in=wobblesome rsa_id=7B700C0C207EBD0002E00F499BE265519AC3C25A "
     "nickname=dc6jgk11 sampled_on=2016-11-28T11:50:13 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1\n"
   "Guard in=default rsa_id=E9025AD60D86875D5F11548D536CC6AF60F0EF5E "
     "nickname=maibrunn sampled_on=2016-11-25T22:36:38 "
+    "sampled_idx=3 "
     "sampled_by=0.3.0.0-alpha-dev listed=1\n"
   "Guard in=default rsa_id=DCD30B90BA3A792DA75DC54A327EF353FB84C38E "
     "nickname=Unnamed sampled_on=2016-11-25T14:34:00 "
+    "sampled_idx=10 "
     "sampled_by=0.3.0.0-alpha-dev listed=1\n"
   "Guard in=bridges rsa_id=8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF2E "
     "bridge_addr=24.1.1.1:443 sampled_on=2016-11-25T06:44:14 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev listed=1 "
     "confirmed_on=2016-11-29T10:36:06 confirmed_idx=0 "
     "pb_circ_attempts=8.000000 pb_circ_successes=8.000000 "
     "pb_successful_circuits_closed=13.000000\n"
   "Guard in=bridges rsa_id=5800000000000000000000000000000000000000 "
     "bridge_addr=37.218.246.143:28366 "
-    "sampled_on=2016-11-18T15:07:34 sampled_by=0.3.0.0-alpha-dev listed=1\n";
+    "sampled_on=2016-11-18T15:07:34 sampled_idx=1 sampled_by=0.3.0.0-alpha-dev listed=1\n";
 
   config_line_t *lines = NULL;
   or_state_t *state = tor_malloc_zero(sizeof(or_state_t));
@@ -729,35 +739,41 @@ test_entry_guard_parse_from_state_full(void *arg)
   tt_str_op(joined, OP_EQ,
   "Guard in=default rsa_id=052900AB0EA3ED54BAB84AE8A99E74E8693CE2B2 "
     "nickname=5OfNovember sampled_on=2016-11-20T04:32:05 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1 confirmed_on=2016-11-22T08:13:28 confirmed_idx=0 "
     "pb_circ_attempts=4.000000 pb_circ_successes=2.000000 "
     "pb_successful_circuits_closed=2.000000\n"
   "Guard in=default rsa_id=7B700C0C207EBD0002E00F499BE265519AC3C25A "
     "nickname=dc6jgk11 sampled_on=2016-11-28T11:50:13 "
+    "sampled_idx=1 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1 confirmed_on=2016-11-24T08:45:30 confirmed_idx=1 "
     "pb_circ_attempts=5.000000 pb_circ_successes=5.000000 "
     "pb_successful_circuits_closed=5.000000\n"
   "Guard in=default rsa_id=E9025AD60D86875D5F11548D536CC6AF60F0EF5E "
     "nickname=maibrunn sampled_on=2016-11-25T22:36:38 "
+    "sampled_idx=2 "
     "sampled_by=0.3.0.0-alpha-dev listed=1\n"
   "Guard in=default rsa_id=DCD30B90BA3A792DA75DC54A327EF353FB84C38E "
     "nickname=Unnamed sampled_on=2016-11-25T14:34:00 "
+    "sampled_idx=3 "
     "sampled_by=0.3.0.0-alpha-dev listed=1\n"
   "Guard in=wobblesome rsa_id=7B700C0C207EBD0002E00F499BE265519AC3C25A "
     "nickname=dc6jgk11 sampled_on=2016-11-28T11:50:13 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev "
     "listed=1\n"
   "Guard in=bridges rsa_id=8FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF2E "
     "bridge_addr=24.1.1.1:443 sampled_on=2016-11-25T06:44:14 "
+    "sampled_idx=0 "
     "sampled_by=0.3.0.0-alpha-dev listed=1 "
     "confirmed_on=2016-11-29T10:36:06 confirmed_idx=0 "
     "pb_circ_attempts=8.000000 pb_circ_successes=8.000000 "
     "pb_successful_circuits_closed=13.000000\n"
   "Guard in=bridges rsa_id=5800000000000000000000000000000000000000 "
     "bridge_addr=37.218.246.143:28366 "
-    "sampled_on=2016-11-18T15:07:34 sampled_by=0.3.0.0-alpha-dev listed=1\n");
+    "sampled_on=2016-11-18T15:07:34 sampled_idx=1 sampled_by=0.3.0.0-alpha-dev listed=1\n");
 
  done:
   config_free_lines(lines);

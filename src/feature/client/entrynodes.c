@@ -172,6 +172,7 @@ static entry_guard_t *get_sampled_guard_by_bridge_addr(guard_selection_t *gs,
                                               const tor_addr_port_t *addrport);
 static int entry_guard_obeys_restriction(const entry_guard_t *guard,
                                          const entry_guard_restriction_t *rst);
+static int compare_guards_by_sampled_idx(const void **a_, const void **b_);
 
 /** Return 0 if we should apply guardfraction information found in the
  *  consensus. A specific consensus can be specified with the
@@ -890,6 +891,7 @@ entry_guard_add_to_sample_impl(guard_selection_t *gs,
   tor_free(guard->sampled_by_version);
   guard->sampled_by_version = tor_strdup(VERSION);
   guard->currently_listed = 1;
+  guard->sampled_idx = gs->next_sampled_idx++;
   guard->confirmed_idx = -1;
 
   /* non-persistent fields */
@@ -1771,7 +1773,8 @@ sample_reachable_filtered_entry_guards(guard_selection_t *gs,
            flags, smartlist_len(reachable_filtered_sample));
 
   if (smartlist_len(reachable_filtered_sample)) {
-    result = smartlist_choose(reachable_filtered_sample);
+    smartlist_sort(reachable_filtered_sample, compare_guards_by_sampled_idx);
+    result = smartlist_get(reachable_filtered_sample, 0);
     log_info(LD_GUARD, "  (Selected %s.)",
              result ? entry_guard_describe(result) : "<null>");
   }
@@ -1791,6 +1794,21 @@ compare_guards_by_confirmed_idx(const void **a_, const void **b_)
   if (a->confirmed_idx < b->confirmed_idx)
     return -1;
   else if (a->confirmed_idx > b->confirmed_idx)
+    return 1;
+  else
+    return 0;
+}
+/**
+ * Helper: compare two entry_guard_t by their sampled_idx values.
+ * Used to sort the sampled list
+ */
+static int
+compare_guards_by_sampled_idx(const void **a_, const void **b_)
+{
+  const entry_guard_t *a = *a_, *b = *b_;
+  if (a->sampled_idx < b->sampled_idx)
+    return -1;
+  else if (a->sampled_idx > b->sampled_idx)
     return 1;
   else
     return 0;
@@ -2051,12 +2069,21 @@ select_primary_guard_for_circuit(guard_selection_t *gs,
   int num_entry_guards = get_n_primary_guards_to_use(usage);
   smartlist_t *usable_primary_guards = smartlist_new();
 
+  /** Always takes the oldest ones first  -- I did not find guarantees that
+   * gs->primary_entry_guards has the same ordering after update of the list,
+   * even for the num_entry_guards same relays 
+   * */
+  smartlist_sort(gs->primary_entry_guards, compare_guards_by_sampled_idx);
   SMARTLIST_FOREACH_BEGIN(gs->primary_entry_guards, entry_guard_t *, guard) {
     entry_guard_consider_retry(guard);
-    if (! entry_guard_obeys_restriction(guard, rst))
+    if (! entry_guard_obeys_restriction(guard, rst)){
+      log_info(LD_GUARD, "Entry guard %s doesn't obey restriction, we test the next one",
+          entry_guard_describe(guard));
       continue;
+    }
     if (guard->is_reachable != GUARD_REACHABLE_NO) {
       if (need_descriptor && !guard_has_descriptor(guard)) {
+        log_info(LD_GUARD, "Guard %s does not have a descriptor", entry_guard_describe(guard));
         continue;
       }
       *state_out = GUARD_CIRC_STATE_USABLE_ON_COMPLETION;
@@ -2069,9 +2096,9 @@ select_primary_guard_for_circuit(guard_selection_t *gs,
 
   if (smartlist_len(usable_primary_guards)) {
     chosen_guard = smartlist_choose(usable_primary_guards);
+    log_info(LD_GUARD, "Selected primary guard %s for circuit from a list size of %d.",
+             entry_guard_describe(chosen_guard), smartlist_len(usable_primary_guards));
     smartlist_free(usable_primary_guards);
-    log_info(LD_GUARD, "Selected primary guard %s for circuit.",
-             entry_guard_describe(chosen_guard));
   }
 
   smartlist_free(usable_primary_guards);
@@ -2774,7 +2801,7 @@ entry_guards_update_all(guard_selection_t *gs)
  * <b>guard</b> to the state file.
  */
 STATIC char *
-entry_guard_encode_for_state(entry_guard_t *guard)
+entry_guard_encode_for_state(entry_guard_t *guard, int dense_sampled_idx)
 {
   /*
    * The meta-format we use is K=V K=V K=V... where K can be any
@@ -2803,7 +2830,8 @@ entry_guard_encode_for_state(entry_guard_t *guard)
 
   format_iso_time_nospace(tbuf, guard->sampled_on_date);
   smartlist_add_asprintf(result, "sampled_on=%s", tbuf);
-
+  // Replacing the sampled_idx by dense array
+  smartlist_add_asprintf(result, "sampled_idx=%d", dense_sampled_idx);
   if (guard->sampled_by_version) {
     smartlist_add_asprintf(result, "sampled_by=%s",
                            guard->sampled_by_version);
@@ -2874,6 +2902,7 @@ entry_guard_parse_from_state(const char *s)
   char *rsa_id = NULL;
   char *nickname = NULL;
   char *sampled_on = NULL;
+  char *sampled_idx = NULL;
   char *sampled_by = NULL;
   char *unlisted_since = NULL;
   char *listed  = NULL;
@@ -2903,6 +2932,7 @@ entry_guard_parse_from_state(const char *s)
     FIELD(rsa_id);
     FIELD(nickname);
     FIELD(sampled_on);
+    FIELD(sampled_idx);
     FIELD(sampled_by);
     FIELD(unlisted_since);
     FIELD(listed);
@@ -3024,7 +3054,16 @@ entry_guard_parse_from_state(const char *s)
   /* Take sampled_by_version verbatim. */
   guard->sampled_by_version = sampled_by;
   sampled_by = NULL; /* prevent free */
-
+  if (sampled_idx) {
+    int ok = 1;
+    long idx = tor_parse_long(sampled_idx, 10, 0, INT_MAX, &ok, NULL);
+    if (!ok) {
+      log_warn(LD_GUARD, "Guard has invalid sampled_idx %s",
+          escaped(sampled_idx));
+    } else {
+      guard->sampled_idx = (int)idx;
+    }
+  }
   /* Listed is a boolean */
   if (listed && strcmp(listed, "0"))
     guard->currently_listed = 1;
@@ -3123,15 +3162,18 @@ entry_guards_update_guards_in_state(or_state_t *state)
     return;
   config_line_t *lines = NULL;
   config_line_t **nextline = &lines;
-
+  
   SMARTLIST_FOREACH_BEGIN(guard_contexts, guard_selection_t *, gs) {
+    int i = 0;
+    smartlist_sort(gs->sampled_entry_guards, compare_guards_by_sampled_idx);
     SMARTLIST_FOREACH_BEGIN(gs->sampled_entry_guards, entry_guard_t *, guard) {
       if (guard->is_persistent == 0)
         continue;
       *nextline = tor_malloc_zero(sizeof(config_line_t));
       (*nextline)->key = tor_strdup("Guard");
-      (*nextline)->value = entry_guard_encode_for_state(guard);
+      (*nextline)->value = entry_guard_encode_for_state(guard, i);
       nextline = &(*nextline)->next;
+      i++;
     } SMARTLIST_FOREACH_END(guard);
   } SMARTLIST_FOREACH_END(gs);
 
@@ -3184,6 +3226,11 @@ entry_guards_load_guards_from_state(or_state_t *state, int set)
       tor_assert(gs);
       smartlist_add(gs->sampled_entry_guards, guard);
       guard->in_selection = gs;
+      /* Recompute the next_sampled_id from the state */
+      if (gs->next_sampled_idx < guard->sampled_idx) {
+        gs->next_sampled_idx = ++guard->sampled_idx;
+      }
+
     } else {
       entry_guard_free(guard);
     }
