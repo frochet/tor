@@ -1709,9 +1709,8 @@ entry_guards_update_filtered_sets(guard_selection_t *gs)
 }
 
 /**
- * Return the first sampled (i.e., with smallest sampled_idx) guard from the
- * reachable filtered sample guards in <b>gs</b>, subject to the exclusion rules
- * listed in <b>flags</b>.
+ * Return a random guard from the reachable filtered sample guards
+ * in <b>gs</b>, subject to the exclusion rules listed in <b>flags</b>.
  * Return NULL if no such guard can be found.
  *
  * Make sure that the sample is big enough, and that all the filter flags
@@ -1785,6 +1784,21 @@ sample_reachable_filtered_entry_guards(guard_selection_t *gs,
 }
 
 /**
+ * Helper: compare two entry_guard_t by their confirmed_idx values.
+ * Used to sort the confirmed list.
+ */
+static int
+compare_guards_by_confirmed_idx(const void **a_, const void **b_)
+{
+  const entry_guard_t *a = *a_, *b = *b_;
+  if (a->confirmed_idx < b->confirmed_idx)
+    return -1;
+  else if (a->confirmed_idx > b->confirmed_idx)
+    return 1;
+  else
+    return 0;
+}
+/**
  * Helper: compare two entry_guard_t by their sampled_idx values.
  * Used to sort the sampled list
  */
@@ -1814,7 +1828,7 @@ entry_guards_update_confirmed(guard_selection_t *gs)
       smartlist_add(gs->confirmed_entry_guards, guard);
   } SMARTLIST_FOREACH_END(guard);
 
-  smartlist_sort(gs->confirmed_entry_guards, compare_guards_by_sampled_idx);
+  smartlist_sort(gs->confirmed_entry_guards, compare_guards_by_confirmed_idx);
 
   int any_changed = 0;
   SMARTLIST_FOREACH_BEGIN(gs->confirmed_entry_guards, entry_guard_t *, guard) {
