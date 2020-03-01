@@ -1711,7 +1711,7 @@ entry_guards_update_filtered_sets(guard_selection_t *gs)
 /**
  * Return the first sampled guard from the reachable filtered sample guards
  * in <b>gs</b>, subject to the exclusion rules listed in <b>flags</b>.
- * Return NULL if no such guard can be found. 
+ * Return NULL if no such guard can be found.
  *
  * Make sure that the sample is big enough, and that all the filter flags
  * are set correctly, before calling this function.
@@ -2074,19 +2074,20 @@ select_primary_guard_for_circuit(guard_selection_t *gs,
 
   /** Always takes the oldest ones first  -- I did not find guarantees that
    * gs->primary_entry_guards has the same ordering after update of the list,
-   * even for the num_entry_guards same relays 
+   * even for the num_entry_guards same relays.
    * */
   smartlist_sort(gs->primary_entry_guards, compare_guards_by_sampled_idx);
   SMARTLIST_FOREACH_BEGIN(gs->primary_entry_guards, entry_guard_t *, guard) {
     entry_guard_consider_retry(guard);
-    if (! entry_guard_obeys_restriction(guard, rst)){
-      log_info(LD_GUARD, "Entry guard %s doesn't obey restriction, we test the next one",
-          entry_guard_describe(guard));
+    if (!entry_guard_obeys_restriction(guard, rst)) {
+      log_info(LD_GUARD, "Entry guard %s doesn't obey restriction, we test the"
+          " next one", entry_guard_describe(guard));
       continue;
     }
     if (guard->is_reachable != GUARD_REACHABLE_NO) {
       if (need_descriptor && !guard_has_descriptor(guard)) {
-        log_info(LD_GUARD, "Guard %s does not have a descriptor", entry_guard_describe(guard));
+        log_info(LD_GUARD, "Guard %s does not have a descriptor",
+            entry_guard_describe(guard));
         continue;
       }
       *state_out = GUARD_CIRC_STATE_USABLE_ON_COMPLETION;
@@ -2099,8 +2100,10 @@ select_primary_guard_for_circuit(guard_selection_t *gs,
 
   if (smartlist_len(usable_primary_guards)) {
     chosen_guard = smartlist_choose(usable_primary_guards);
-    log_info(LD_GUARD, "Selected primary guard %s for circuit from a list size of %d.",
-             entry_guard_describe(chosen_guard), smartlist_len(usable_primary_guards));
+    log_info(LD_GUARD,
+        "Selected primary guard %s for circuit from a list size of %d.",
+        entry_guard_describe(chosen_guard),
+        smartlist_len(usable_primary_guards));
     smartlist_free(usable_primary_guards);
   }
 
@@ -3165,7 +3168,7 @@ entry_guards_update_guards_in_state(or_state_t *state)
     return;
   config_line_t *lines = NULL;
   config_line_t **nextline = &lines;
-  
+
   SMARTLIST_FOREACH_BEGIN(guard_contexts, guard_selection_t *, gs) {
     int i = 0;
     smartlist_sort(gs->sampled_entry_guards, compare_guards_by_sampled_idx);

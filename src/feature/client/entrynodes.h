@@ -117,8 +117,8 @@ struct entry_guard_t {
    * confirmed guard. */
   time_t confirmed_on_date; /* 0 if not confirmed */
   /**
-   * In what order was this guard sampled without replacement? Guards with lower
-   * indices appear earlier on the sampled list
+   * In what order was this guard sampled without replacement? Guards with
+   * lower indices appear earlier on the sampled list
    */
   int sampled_idx;
 
