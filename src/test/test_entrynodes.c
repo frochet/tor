@@ -1528,7 +1528,6 @@ test_entry_guard_sample_reachable_filtered(void *arg)
   (void)arg;
   guard_selection_t *gs = guard_selection_new("default", GS_TYPE_NORMAL);
   entry_guards_expand_sample(gs);
-  bitarray_t *selected = NULL;
 
   /* We've got a sampled list now; let's make one non-usable-filtered; some
    * confirmed, some primary, some pending.
@@ -1565,7 +1564,6 @@ test_entry_guard_sample_reachable_filtered(void *arg)
   };
   int j;
   for (j = 0; tests[j].flag >= 0; ++j) {
-    selected = bitarray_init_zero(n_guards);
     const int excluded_flags = tests[j].flag;
     const int excluded_idx = tests[j].idx;
     g = first_reachable_filtered_entry_guard(gs, NULL, excluded_flags);
@@ -1575,13 +1573,10 @@ test_entry_guard_sample_reachable_filtered(void *arg)
     const int should_be_set = (pos != excluded_idx &&
                                  pos != 3); // filtered out.
     tt_int_op(1, OP_EQ, should_be_set);
-    bitarray_free(selected);
-    selected = NULL;
   }
 
  done:
   guard_selection_free(gs);
-  bitarray_free(selected);
 }
 
 static void
