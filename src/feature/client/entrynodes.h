@@ -535,7 +535,7 @@ STATIC void entry_guard_free_(entry_guard_t *e);
 STATIC void entry_guards_update_filtered_sets(guard_selection_t *gs);
 STATIC int entry_guards_all_primary_guards_are_down(guard_selection_t *gs);
 /**
- * @name Flags for sample_reachable_filtered_entry_guards()
+ * @name Flags for first_reachable_filtered_entry_guard()
  */
 /**@{*/
 #define SAMPLE_EXCLUDE_CONFIRMED   (1u<<0)
@@ -544,7 +544,7 @@ STATIC int entry_guards_all_primary_guards_are_down(guard_selection_t *gs);
 #define SAMPLE_NO_UPDATE_PRIMARY   (1u<<3)
 #define SAMPLE_EXCLUDE_NO_DESCRIPTOR (1u<<4)
 /**@}*/
-STATIC entry_guard_t *sample_reachable_filtered_entry_guards(
+STATIC entry_guard_t *first_reachable_filtered_entry_guard(
                                     guard_selection_t *gs,
                                     const entry_guard_restriction_t *rst,
                                     unsigned flags);

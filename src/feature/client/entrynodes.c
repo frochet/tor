@@ -99,7 +99,7 @@
  * [x] When we are about to pick a guard, make sure that the primary list is
  * full.
  *
- * [x] Before calling sample_reachable_filtered_entry_guards(), make sure
+ * [x] Before calling first_reachable_filtered_entry_guard(), make sure
  * that the filtered, primary, and confirmed flags are up-to-date.
  *
  * [x] Call entry_guard_consider_retry every time we are about to check
@@ -1709,9 +1709,9 @@ entry_guards_update_filtered_sets(guard_selection_t *gs)
 }
 
 /**
- * Return a random guard from the reachable filtered sample guards
+ * Return the first sampled guard from the reachable filtered sample guards
  * in <b>gs</b>, subject to the exclusion rules listed in <b>flags</b>.
- * Return NULL if no such guard can be found.
+ * Return NULL if no such guard can be found. 
  *
  * Make sure that the sample is big enough, and that all the filter flags
  * are set correctly, before calling this function.
@@ -1720,7 +1720,7 @@ entry_guards_update_filtered_sets(guard_selection_t *gs)
  * violate it.
  **/
 STATIC entry_guard_t *
-sample_reachable_filtered_entry_guards(guard_selection_t *gs,
+first_reachable_filtered_entry_guard(guard_selection_t *gs,
                                        const entry_guard_restriction_t *rst,
                                        unsigned flags)
 {
@@ -1839,6 +1839,8 @@ entry_guards_update_confirmed(guard_selection_t *gs)
   } SMARTLIST_FOREACH_END(guard);
 
   gs->next_confirmed_idx = smartlist_len(gs->confirmed_entry_guards);
+  // We need the confirmed list to always be give guards in sampled order
+  smartlist_sort(gs->confirmed_entry_guards, compare_guards_by_sampled_idx);
 
   if (any_changed) {
     entry_guards_changed_for_guard_selection(gs);
@@ -1867,6 +1869,7 @@ make_guard_confirmed(guard_selection_t *gs, entry_guard_t *guard)
 
   guard->confirmed_idx = gs->next_confirmed_idx++;
   smartlist_add(gs->confirmed_entry_guards, guard);
+  smartlist_sort(gs->confirmed_entry_guards, compare_guards_by_sampled_idx);
 
   // This confirmed guard might kick something else out of the primary
   // guards.
@@ -1930,7 +1933,7 @@ entry_guards_update_primary(guard_selection_t *gs)
 
   /* Finally, fill out the list with sampled guards. */
   while (smartlist_len(new_primary_guards) < N_PRIMARY_GUARDS) {
-    entry_guard_t *guard = sample_reachable_filtered_entry_guards(gs, NULL,
+    entry_guard_t *guard = first_reachable_filtered_entry_guard(gs, NULL,
                                             SAMPLE_EXCLUDE_CONFIRMED|
                                             SAMPLE_EXCLUDE_PRIMARY|
                                             SAMPLE_NO_UPDATE_PRIMARY);
@@ -2159,7 +2162,7 @@ select_filtered_guard_for_circuit(guard_selection_t *gs,
   unsigned flags = 0;
   if (need_descriptor)
     flags |= SAMPLE_EXCLUDE_NO_DESCRIPTOR;
-  chosen_guard = sample_reachable_filtered_entry_guards(gs,
+  chosen_guard = first_reachable_filtered_entry_guard(gs,
                                                  rst,
                                                  SAMPLE_EXCLUDE_CONFIRMED |
                                                  SAMPLE_EXCLUDE_PRIMARY |

@@ -1477,8 +1477,8 @@ test_entry_guard_confirming_guards(void *arg)
   tt_i64_op(g1->confirmed_on_date, OP_EQ, start+10);
   tt_i64_op(g2->confirmed_on_date, OP_EQ, start);
   tt_i64_op(g3->confirmed_on_date, OP_EQ, start+10);
-  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 0), OP_EQ, g2);
-  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 1), OP_EQ, g1);
+  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 0), OP_EQ, g1);
+  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 1), OP_EQ, g2);
   tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 2), OP_EQ, g3);
 
   /* Now make sure we can regenerate the confirmed_entry_guards list. */
@@ -1490,8 +1490,8 @@ test_entry_guard_confirming_guards(void *arg)
   tt_int_op(g1->confirmed_idx, OP_EQ, 1);
   tt_int_op(g2->confirmed_idx, OP_EQ, 0);
   tt_int_op(g3->confirmed_idx, OP_EQ, 2);
-  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 0), OP_EQ, g2);
-  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 1), OP_EQ, g1);
+  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 0), OP_EQ, g1);
+  tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 1), OP_EQ, g2);
   tt_ptr_op(smartlist_get(gs->confirmed_entry_guards, 2), OP_EQ, g3);
 
   /* Now make sure we can regenerate the confirmed_entry_guards list if
@@ -1526,9 +1526,7 @@ test_entry_guard_sample_reachable_filtered(void *arg)
   (void)arg;
   guard_selection_t *gs = guard_selection_new("default", GS_TYPE_NORMAL);
   entry_guards_expand_sample(gs);
-  const int N = 10000;
   bitarray_t *selected = NULL;
-  int i, j;
 
   /* We've got a sampled list now; let's make one non-usable-filtered; some
    * confirmed, some primary, some pending.
@@ -1563,25 +1561,18 @@ test_entry_guard_sample_reachable_filtered(void *arg)
     { SAMPLE_EXCLUDE_PENDING, 0 },
     { -1, -1},
   };
-
+  int j;
   for (j = 0; tests[j].flag >= 0; ++j) {
     selected = bitarray_init_zero(n_guards);
     const int excluded_flags = tests[j].flag;
     const int excluded_idx = tests[j].idx;
-    for (i = 0; i < N; ++i) {
-      g = sample_reachable_filtered_entry_guards(gs, NULL, excluded_flags);
-      tor_assert(g);
-      int pos = smartlist_pos(gs->sampled_entry_guards, g);
-      tt_int_op(smartlist_len(gs->sampled_entry_guards), OP_EQ, n_guards);
-      tt_int_op(pos, OP_GE, 0);
-      tt_int_op(pos, OP_LT, n_guards);
-      bitarray_set(selected, pos);
-    }
-    for (i = 0; i < n_guards; ++i) {
-      const int should_be_set = (i != excluded_idx &&
-                                 i != 3); // filtered out.
-      tt_int_op(!!bitarray_is_set(selected, i), OP_EQ, should_be_set);
-    }
+    g = first_reachable_filtered_entry_guard(gs, NULL, excluded_flags);
+    tor_assert(g);
+    int pos = smartlist_pos(gs->sampled_entry_guards, g);
+    tt_int_op(smartlist_len(gs->sampled_entry_guards), OP_EQ, n_guards);
+    const int should_be_set = (pos != excluded_idx &&
+                                 pos != 3); // filtered out.
+    tt_int_op(1, OP_EQ, should_be_set);
     bitarray_free(selected);
     selected = NULL;
   }
@@ -1600,7 +1591,7 @@ test_entry_guard_sample_reachable_filtered_empty(void *arg)
   SMARTLIST_FOREACH(big_fake_net_nodes, node_t *, n,
                     n->is_possible_guard = 0);
 
-  entry_guard_t *g = sample_reachable_filtered_entry_guards(gs, NULL, 0);
+  entry_guard_t *g = first_reachable_filtered_entry_guard(gs, NULL, 0);
   tt_ptr_op(g, OP_EQ, NULL);
 
  done:
